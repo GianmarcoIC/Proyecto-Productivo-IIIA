@@ -3,6 +3,6 @@ services:
     name: frutas-yolo
     env: python
     buildCommand: |
-      apt-get update && apt-get install -y libgl1 libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1
+      apt-get update && apt-get install -y libgl1
       pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
