@@ -2,76 +2,59 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Frutas – Clasificación de Maduración</title>
+  <title>Detector Profesional de Frutas</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="container">
-    <h1>🍎 Clasificador de Maduración de Frutas</h1>
-    <video id="video" width="640" height="480" autoplay></video>
-    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
-    <img id="result" width="640" height="480" style="display:none;">
-    <br>
-    <button id="capture">📸 Capturar y Detectar</button>
+  <nav class="navbar navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">🍎 Detector de Frutas</a>
+      <ul class="navbar-nav ms-auto d-flex flex-row">
+        <li class="nav-item mx-3"><a class="nav-link" href="#live">Detección en Vivo</a></li>
+        <li class="nav-item mx-3"><a class="nav-link" href="#library">Biblioteca</a></li>
+      </ul>
+    </div>
+  </nav>
 
-    <div id="results"></div>
+  <div class="container mt-4">
+    <section id="live">
+      <h2>Detección en Vivo</h2>
+      <div class="text-center">
+        <video id="video" width="640" height="480" autoplay class="border rounded"></video>
+        <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+        <img id="result" width="640" height="480" class="border rounded mt-3" style="display:none;">
+      </div>
+      <div class="text-center mt-3">
+        <button id="capture" class="btn btn-primary">📸 Capturar y Detectar</button>
+        <button id="auto" class="btn btn-success">▶️ Detección Automática</button>
+        <button id="stop" class="btn btn-danger" style="display:none;">⏹️ Detener</button>
+      </div>
+      <div id="results" class="mt-4"></div>
+      <canvas id="statsChart" width="300" height="300" class="mt-4"></canvas>
+    </section>
 
-    <h3>Estadísticas (sesión actual)</h3>
-    <canvas id="statsChart" width="300" height="300"></canvas>
+    <section id="library" class="mt-5">
+      <h2>Biblioteca de Imágenes</h2>
+      <div class="row" id="gallery">
+        {% for item in library %}
+        <div class="col-md-3 mb-4">
+          <div class="card">
+            <img src="{{ item.url }}" class="card-img-top" alt="{{ item.fruit }}">
+            <div class="card-body">
+              <h5 class="card-title">{{ item.fruit }}</h5>
+              <p class="card-text">Estado: <strong>{{ item.ripeness }}</strong></p>
+              <p class="text-muted">{{ item.date }}</p>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
   </div>
 
-  <script>
-    const video  = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx    = canvas.getContext('2d');
-    const result = document.getElementById('result');
-    const out    = document.getElementById('results');
-    const btn    = document.getElementById('capture');
-
-    navigator.mediaDevices.getUserMedia({video:true})
-      .then(s => video.srcObject = s)
-      .catch(e => console.error(e));
-
-    let statsChart;
-
-    function drawChart(stats){
-      const labels = Object.keys(stats);
-      const data   = Object.values(stats);
-      const cfg = {
-        type: 'pie',
-        data: {
-          labels: labels,
-          datasets: [{
-            data: data,
-            backgroundColor: ['#4CAF50','#FFC107','#F44336']
-          }]
-        },
-        options: { responsive: false, plugins: { legend: { position: 'bottom' } } }
-      };
-      if(statsChart) statsChart.destroy();
-      statsChart = new Chart(document.getElementById('statsChart'), cfg);
-    }
-
-    btn.addEventListener('click', () => {
-      ctx.drawImage(video, 0, 0, 640, 480);
-      fetch('/detect', {
-        method : 'POST',
-        headers: {'Content-Type':'application/json'},
-        body   : JSON.stringify({image: canvas.toDataURL('image/jpeg')})
-      })
-      .then(r => r.json())
-      .then(d => {
-        if(d.error) return out.innerHTML = `<p>Error: ${d.error}</p>`;
-        result.src = d.image;
-        result.style.display = 'block';
-        out.innerHTML = '<h3>Resultados:</h3><ul>' +
-          d.detections.map(x =>
-            `<li>${x.class} → <strong>${x.ripeness}</strong> (${(x.confidence*100).toFixed(0)}%)</li>`).join('') +
-          '</ul>';
-        drawChart(d.stats);
-      });
-    });
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
