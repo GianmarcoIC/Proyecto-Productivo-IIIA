@@ -10,7 +10,6 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 
-# Cloudinary
 cloudinary.config(
     cloud_name=os.getenv("CLOUD_NAME"),
     api_key=os.getenv("API_KEY"),
@@ -18,9 +17,13 @@ cloudinary.config(
 )
 
 FRUIT_IDS = {46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58}
-COLOR_MAP = {"RIPEN": (0,255,0), "UNRIPEN": (0,0,255), "OVERRIPE": (0,255,255)}
+COLOR_MAP = {
+    "RIPEN": (0,255,0),
+    "UNRIPEN": (0,0,255),
+    "OVERRIPE": (0,255,255),
+    "NO-FRUIT": (128,128,128)
+}
 
-# RAM storage
 detections_db = []
 _model = None
 
@@ -55,32 +58,41 @@ def detect():
         data = request.json.get("image", "")
         if not data: return jsonify({"error": "No image"}), 400
         im = cv2.imdecode(np.frombuffer(base64.b64decode(data.split(",")[1]), np.uint8), cv2.IMREAD_COLOR)
+        if im is None: return jsonify({"error": "Imagen inválida"}), 400
         model = get_model()
         results = model(im, verbose=False)
         outs = []
         for r in results:
             for box in r.boxes:
                 cls = int(box.cls[0])
+                x1,y1,x2,y2 = map(int, box.xyxy[0])
+                conf = float(box.conf[0])
+                crop = im[y1:y2, x1:x2]
+                label = model.names[cls]
+
                 if cls in FRUIT_IDS:
-                    x1,y1,x2,y2 = map(int, box.xyxy[0])
-                    conf = float(box.conf[0])
-                    crop = im[y1:y2, x1:x2]
                     ripeness = ripeness_class(crop)
                     color = COLOR_MAP[ripeness]
-                    cv2.rectangle(im, (x1,y1), (x2,y2), color, 3)
-                    label = f"{model.names[cls]} ({ripeness})"
-                    cv2.putText(im, label, (x1,y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-                    outs.append({
-                        "class": model.names[cls],
-                        "ripeness": ripeness,
-                        "confidence": round(conf,2),
-                        "bbox": [x1,y1,x2,y2]
-                    })
+                    folder = "frutas"
+                else:
+                    ripeness = "NO-FRUIT"
+                    color = COLOR_MAP["NO-FRUIT"]
+                    folder = "no-frutas"
+
+                cv2.rectangle(im, (x1,y1), (x2,y2), color, 3)
+                cv2.putText(im, f"{label} ({ripeness})", (x1,y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                outs.append({
+                    "class": label,
+                    "ripeness": ripeness,
+                    "confidence": round(conf,2),
+                    "bbox": [x1,y1,x2,y2]
+                })
+
         _, buf = cv2.imencode(".jpg", im)
         b64 = base64.b64encode(buf).decode()
         if outs:
-            upload = cloudinary.uploader.upload(buf.tobytes(), folder="frutas", resource_type="image",
-                context={"fruit": outs[0]["class"], "ripeness": outs[0]["ripeness"]})
+            upload = cloudinary.uploader.upload(buf.tobytes(), folder=folder, resource_type="image",
+                context={"class": outs[0]["class"], "ripeness": outs[0]["ripeness"]})
             detections_db.append({
                 "user_id": session.get("user","anon"),
                 "timestamp": datetime.now().isoformat(),
@@ -98,24 +110,24 @@ def upload():
     file = request.files["file"]
     if not file: return jsonify({"error": "No file"}), 400
     try:
-        upload = cloudinary.uploader.upload(file, folder="frutas", resource_type="auto")
+        upload = cloudinary.uploader.upload(file, resource_type="auto")
         im = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
+        if im is None: return jsonify({"error": "Formato no válido"}), 400
         model = get_model()
         results = model(im, verbose=False)
         outs = []
         for r in results:
             for box in r.boxes:
                 cls = int(box.cls[0])
+                conf = float(box.conf[0])
+                label = model.names[cls]
                 if cls in FRUIT_IDS:
-                    x1,y1,x2,y2 = map(int, box.xyxy[0])
-                    conf = float(box.conf[0])
-                    crop = im[y1:y2, x1:x2]
-                    ripeness = ripeness_class(crop)
-                    outs.append({
-                        "class": model.names[cls],
-                        "ripeness": ripeness,
-                        "confidence": round(conf,2)
-                    })
+                    ripeness = ripeness_class(im[y1:y2, x1:x2])
+                    folder = "frutas"
+                else:
+                    ripeness = "NO-FRUIT"
+                    folder = "no-frutas"
+                outs.append({"class": label, "ripeness": ripeness, "confidence": round(conf,2)})
         detections_db.append({
             "user_id": session.get("user","anon"),
             "timestamp": datetime.now().isoformat(),
