@@ -2,13 +2,13 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Clasificador de Maduración de Frutas</title>
+  <title>Frutas – Clasificación de Maduración</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div class="container">
-    <h1>🍎 Clasificador de Maduración de Frutas (YOLOv8)</h1>
+    <h1>🍎 Clasificador de Maduración de Frutas</h1>
     <video id="video" width="640" height="480" autoplay></video>
     <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
     <img id="result" width="640" height="480" style="display:none;">
@@ -17,7 +17,7 @@
 
     <div id="results"></div>
 
-    <h3>Estadísticas rápidas (sesión actual)</h3>
+    <h3>Estadísticas (sesión actual)</h3>
     <canvas id="statsChart" width="300" height="300"></canvas>
   </div>
 
