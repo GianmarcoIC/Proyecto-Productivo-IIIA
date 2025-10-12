@@ -5,4 +5,3 @@ numpy==1.26.4
 gunicorn==21.2.0
 cloudinary==1.42.2
 python-dotenv==1.0.1
-flask-session==0.8.0
