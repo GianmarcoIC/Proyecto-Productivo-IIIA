@@ -72,12 +72,12 @@ def detect():
 
                 if cls in FRUIT_IDS:
                     ripeness = ripeness_class(crop)
-                    color = COLOR_MAP[ripeness]
                     folder = "frutas"
+                    color = COLOR_MAP[ripeness]
                 else:
                     ripeness = "NO-FRUIT"
-                    color = COLOR_MAP["NO-FRUIT"]
                     folder = "no-frutas"
+                    color = COLOR_MAP["NO-FRUIT"]
 
                 cv2.rectangle(im, (x1,y1), (x2,y2), color, 3)
                 cv2.putText(im, f"{label} ({ripeness})", (x1,y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
@@ -101,7 +101,12 @@ def detect():
                 "confidence": outs[0]["confidence"],
                 "image_url": upload["secure_url"]
             })
-        return jsonify({"detections": outs, "image": f"data:image/jpeg;base64,{b64}"})
+
+        return jsonify({
+            "detections": outs,
+            "image": f"data:image/jpeg;base64,{b64}",
+            "library": detections_db
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
