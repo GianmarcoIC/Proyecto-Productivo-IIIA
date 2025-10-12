@@ -1,6 +1,6 @@
 flask==3.0.0
 ultralytics==8.2.0
 opencv-python-headless==4.9.0.80
-pillow==10.0.1
+pillow==10.2.0          # wheel para 3.13
 numpy==1.26.4
 gunicorn==21.2.0
