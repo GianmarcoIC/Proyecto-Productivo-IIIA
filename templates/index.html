@@ -69,7 +69,7 @@
             <div class="card-body">
               <h6 class="card-title">{{ item.label }}</h6>
               <p class="card-text"><span class="badge bg-secondary">{{ item.ripeness }}</span></p>
-              <small class="text-muted">{{ item.timestamp[:16] }}</small>
+              <small class="text-muted">{{ item.timestamp.slice(0,16).replace('T',' ') }}</small>
             </div>
           </div>
         </div>
