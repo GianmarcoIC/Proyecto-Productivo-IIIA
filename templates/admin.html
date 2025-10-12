@@ -11,7 +11,7 @@
     <tbody>
       {% for d in detections %}
       <tr>
-        <td>{{ d.timestamp }}</td><td>{{ d.user_id }}</td><td>{{ d.label }}</td><td>{{ d.ripeness }}</td><td>{{ d.confidence }}</td>
+        <td>{{ d.timestamp[:16] }}</td><td>{{ d.user_id }}</td><td>{{ d.label }}</td><td>{{ d.ripeness }}</td><td>{{ d.confidence }}</td>
         <td><a href="{{ d.image_url }}" target="_blank">Ver</a></td>
       </tr>
       {% endfor %}
