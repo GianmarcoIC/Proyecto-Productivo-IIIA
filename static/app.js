@@ -110,9 +110,30 @@ function detect() {
       d.detections.map(x => `<li>${x.class} → <strong>${x.ripeness}</strong> (${(x.confidence*100).toFixed(0)}%)</li>`).join('') +
       '</ul>';
     drawChart(d.detections);
+    updateGallery(d.library);  // ← actualizamos galería
   })
   .catch(err => {
     results.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+  });
+}
+
+// Actualizar galería sin refrescar
+function updateGallery(library) {
+  const gallery = document.getElementById('gallery');
+  gallery.innerHTML = '';
+  library.forEach(item => {
+    gallery.innerHTML += `
+      <div class="col-md-3 mb-4">
+        <div class="card h-100">
+          <img src="${item.image_url}" class="card-img-top" alt="${item.label}">
+          <div class="card-body">
+            <h6 class="card-title">${item.label}</h6>
+            <p class="card-text"><span class="badge bg-secondary">${item.ripeness}</span></p>
+            <small class="text-muted">${item.timestamp.slice(0,16).replace('T',' ')}</small>
+          </div>
+        </div>
+      </div>
+    `;
   });
 }
 
