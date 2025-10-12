@@ -1,10 +1,9 @@
-import os, base64, cv2, numpy as np, json
+import os, base64, cv2, numpy as np, io, csv
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
 from ultralytics import YOLO
 from datetime import datetime
 import cloudinary, cloudinary.uploader
 from dotenv import load_dotenv
-import io, csv
 
 load_dotenv()
 
@@ -40,13 +39,22 @@ def ripeness_class(crop):
 
 @app.route("/")
 def index():
-    return render_template("index.html", detections=detections_db)
+    return render_template("index.html", library=detections_db)
+
+@app.route("/ready")
+def ready():
+    try:
+        get_model()
+        return jsonify({"ready": True})
+    except Exception as e:
+        return jsonify({"ready": False, "error": str(e)}), 500
 
 @app.route("/detect", methods=["POST"])
 def detect():
     try:
-        data = request.json["image"].split(",")[1]
-        im = cv2.imdecode(np.frombuffer(base64.b64decode(data), np.uint8), cv2.IMREAD_COLOR)
+        data = request.json.get("image", "")
+        if not data: return jsonify({"error": "No image"}), 400
+        im = cv2.imdecode(np.frombuffer(base64.b64decode(data.split(",")[1]), np.uint8), cv2.IMREAD_COLOR)
         model = get_model()
         results = model(im, verbose=False)
         outs = []
@@ -60,7 +68,7 @@ def detect():
                     ripeness = ripeness_class(crop)
                     color = COLOR_MAP[ripeness]
                     cv2.rectangle(im, (x1,y1), (x2,y2), color, 3)
-                    label = f"{model.names[cls]} {ripeness}"
+                    label = f"{model.names[cls]} ({ripeness})"
                     cv2.putText(im, label, (x1,y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
                     outs.append({
                         "class": model.names[cls],
@@ -68,9 +76,8 @@ def detect():
                         "confidence": round(conf,2),
                         "bbox": [x1,y1,x2,y2]
                     })
-
         _, buf = cv2.imencode(".jpg", im)
-        img_b64 = base64.b64encode(buf).decode()
+        b64 = base64.b64encode(buf).decode()
         if outs:
             upload = cloudinary.uploader.upload(buf.tobytes(), folder="frutas", resource_type="image",
                 context={"fruit": outs[0]["class"], "ripeness": outs[0]["ripeness"]})
@@ -82,7 +89,7 @@ def detect():
                 "confidence": outs[0]["confidence"],
                 "image_url": upload["secure_url"]
             })
-        return jsonify({"detections": outs, "image": f"data:image/jpeg;base64,{img_b64}"})
+        return jsonify({"detections": outs, "image": f"data:image/jpeg;base64,{b64}"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
