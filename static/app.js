@@ -1,87 +1,67 @@
-const video  = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const ctx    = canvas.getContext('2d');
-const result = document.getElementById('result');
-const out    = document.getElementById('results');
-const btn    = document.getElementById('capture');
-const auto   = document.getElementById('auto');
-const stop   = document.getElementById('stop');
+const statusEl   = document.getElementById('status');
+const video      = document.getElementById('video');
+const canvas     = document.getElementById('canvas');
+const ctx        = canvas.getContext('2d');
+const result     = document.getElementById('result');
+const results    = document.getElementById('results');
+const captureBtn = document.getElementById('capture');
+const autoBtn    = document.getElementById('auto');
+const stopBtn    = document.getElementById('stop');
+const fileInput  = document.getElementById('fileInput');
 
-let statsChart;
+let modelLoaded = false;
 let autoInterval;
 
+// Verificar disponibilidad de cámara
 navigator.mediaDevices.getUserMedia({video:true})
-  .then(s => video.srcObject = s)
-  .catch(e => console.error(e));
+  .then(s => {
+    video.srcObject = s;
+    statusEl.textContent = "Modelo cargando...";
+    return fetch('/detect', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image: canvas.toDataURL('image/jpeg')})});
+  })
+  .then(r => r.json())
+  .then(() => { modelLoaded = true; statusEl.className="alert alert-success"; statusEl.textContent="Listo"; captureBtn.disabled=false; autoBtn.disabled=false; })
+  .catch(e => { statusEl.className="alert alert-danger"; statusEl.textContent="Error: "+e; });
 
-function drawChart(stats){
-  const labels = Object.keys(stats);
-  const data   = Object.values(stats);
-  const cfg = {
-    type: 'pie',
-    data: {
-      labels: labels,
-      datasets: [{
-        data: data,
-        backgroundColor: ['#4CAF50','#FFC107','#F44336']
-      }]
-    },
-    options: { responsive: false, plugins: { legend: { position: 'bottom' } } }
+captureBtn.addEventListener('click', () => {
+  if (!modelLoaded) return alert("Modelo no listo");
+  ctx.drawImage(video,0,0,640,480);
+  detect();
+});
+
+autoBtn.addEventListener('click', () => {
+  if (!modelLoaded) return alert("Modelo no listo");
+  autoInterval = setInterval(() => { ctx.drawImage(video,0,0,640,480); detect(); }, 3000);
+  autoBtn.style.display='none'; stopBtn.style.display='inline-block';
+});
+stopBtn.addEventListener('click', () => {
+  clearInterval(autoInterval);
+  autoBtn.style.display='inline-block'; stopBtn.style.display='none';
+});
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    fetch('/upload', {method:'POST', body: new FormData(document.createElement('form').append('file', file))})
+      .then(r => r.json()).then(d => alert(d.msg || d.error));
   };
-  if(statsChart) statsChart.destroy();
-  statsChart = new Chart(document.getElementById('statsChart'), cfg);
-}
+  reader.readAsDataURL(file);
+});
 
 function detect() {
-  ctx.drawImage(video, 0, 0, 640, 480);
   fetch('/detect', {
-    method : 'POST',
-    headers: {'Content-Type':'application/json'},
-    body   : JSON.stringify({image: canvas.toDataURL('image/jpeg')})
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({image: canvas.toDataURL('image/jpeg')})
   })
   .then(r => r.json())
   .then(d => {
-    if(d.error) return out.innerHTML = `<p>Error: ${d.error}</p>`;
-    result.src = d.image;
-    result.style.display = 'block';
-    out.innerHTML = '<h3>Resultados:</h3><ul>' +
-      d.detections.map(x =>
-        `<li>${x.class} → <strong>${x.ripeness}</strong> (${(x.confidence*100).toFixed(0)}%)</li>`).join('') +
+    if (d.error) return alert(d.error);
+    result.src = d.image; result.style.display='block';
+    results.innerHTML = '<h5>Detecciones</h5><ul>' +
+      d.detections.map(x => `<li>${x.class} → <strong>${x.ripeness}</strong> (${(x.confidence*100).toFixed(0)}%)</li>`).join('') +
       '</ul>';
-    drawChart(d.stats);
-    updateGallery(d.library);
   });
 }
-
-function updateGallery(lib) {
-  const gallery = document.getElementById('gallery');
-  gallery.innerHTML = '';
-  lib.forEach(item => {
-    gallery.innerHTML += `
-      <div class="col-md-3 mb-4">
-        <div class="card">
-          <img src="${item.url}" class="card-img-top" alt="${item.fruit}">
-          <div class="card-body">
-            <h5 class="card-title">${item.fruit}</h5>
-            <p class="card-text">Estado: <strong>${item.ripeness}</strong></p>
-            <p class="text-muted">${item.date}</p>
-          </div>
-        </div>
-      </div>
-    `;
-  });
-}
-
-btn.addEventListener('click', detect);
-
-auto.addEventListener('click', () => {
-  autoInterval = setInterval(detect, 3000);
-  auto.style.display = 'none';
-  stop.style.display = 'inline-block';
-});
-
-stop.addEventListener('click', () => {
-  clearInterval(autoInterval);
-  auto.style.display = 'inline-block';
-  stop.style.display = 'none';
-});
