@@ -1,17 +1,17 @@
-import os, base64, cv2, numpy as np
-from flask import Flask, render_template, request, jsonify
+import os, base64, cv2, numpy as np, json
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
 from ultralytics import YOLO
-from collections import defaultdict
 from datetime import datetime
-import cloudinary
-import cloudinary.uploader
+import cloudinary, cloudinary.uploader
 from dotenv import load_dotenv
+import io, csv
 
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY")
 
-# Cloudinary config
+# Cloudinary
 cloudinary.config(
     cloud_name=os.getenv("CLOUD_NAME"),
     api_key=os.getenv("API_KEY"),
@@ -19,16 +19,12 @@ cloudinary.config(
 )
 
 FRUIT_IDS = {46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58}
-COLOR_MAP = {
-    "RIPEN": (0, 255, 0),
-    "UNRIPEN": (0, 0, 255),
-    "OVERRIPE": (0, 255, 255)
-}
+COLOR_MAP = {"RIPEN": (0,255,0), "UNRIPEN": (0,0,255), "OVERRIPE": (0,255,255)}
 
-stats = defaultdict(int)
-library = []
-
+# RAM storage
+detections_db = []
 _model = None
+
 def get_model():
     global _model
     if _model is None:
@@ -37,84 +33,128 @@ def get_model():
 
 def ripeness_class(crop):
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-    s, v = hsv[:, :, 1].mean(), hsv[:, :, 2].mean()
-    if s < 50 and v > 150:
-        return "UNRIPEN"
-    if s > 100 and v > 100:
-        return "RIPEN"
+    s, v = hsv[:,:,1].mean(), hsv[:,:,2].mean()
+    if s < 50 and v > 150: return "UNRIPEN"
+    if s > 100 and v > 100: return "RIPEN"
     return "OVERRIPE"
 
 @app.route("/")
 def index():
-    return render_template("index.html", library=library)
+    return render_template("index.html", detections=detections_db)
 
 @app.route("/detect", methods=["POST"])
 def detect():
     try:
-        im_b64 = request.json["image"].split(",")[1]
-        im_data = base64.b64decode(im_b64)
-        im = cv2.imdecode(np.frombuffer(im_data, np.uint8), cv2.IMREAD_COLOR)
-
+        data = request.json["image"].split(",")[1]
+        im = cv2.imdecode(np.frombuffer(base64.b64decode(data), np.uint8), cv2.IMREAD_COLOR)
         model = get_model()
         results = model(im, verbose=False)
-        detections = []
-
+        outs = []
         for r in results:
             for box in r.boxes:
                 cls = int(box.cls[0])
                 if cls in FRUIT_IDS:
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    x1,y1,x2,y2 = map(int, box.xyxy[0])
                     conf = float(box.conf[0])
                     crop = im[y1:y2, x1:x2]
                     ripeness = ripeness_class(crop)
                     color = COLOR_MAP[ripeness]
-
-                    # Dibujar sombra con color
-                    cv2.rectangle(im, (x1, y1), (x2, y2), color, 3)
-                    label = f"{model.names[cls]} ({ripeness})"
-                    cv2.putText(im, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-
-                    detections.append({
+                    cv2.rectangle(im, (x1,y1), (x2,y2), color, 3)
+                    label = f"{model.names[cls]} {ripeness}"
+                    cv2.putText(im, label, (x1,y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                    outs.append({
                         "class": model.names[cls],
                         "ripeness": ripeness,
-                        "confidence": round(conf, 2),
-                        "bbox": [x1, y1, x2, y2]
+                        "confidence": round(conf,2),
+                        "bbox": [x1,y1,x2,y2]
                     })
-                    stats[ripeness] += 1
 
-        # Subir a Cloudinary
         _, buf = cv2.imencode(".jpg", im)
-        img_bytes = buf.tobytes()
-        upload_result = cloudinary.uploader.upload(
-            img_bytes,
-            folder="frutas",
-            resource_type="image",
-            context={
-                "fruit": detections[0]["class"] if detections else "unknown",
-                "ripeness": detections[0]["ripeness"] if detections else "unknown"
-            }
-        )
-
-        library.append({
-            "url": upload_result["secure_url"],
-            "fruit": detections[0]["class"] if detections else "unknown",
-            "ripeness": detections[0]["ripeness"] if detections else "unknown",
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-
-        b64 = base64.b64encode(buf).decode()
-        return jsonify({
-            "detections": detections,
-            "image": f"data:image/jpeg;base64,{b64}",
-            "stats": dict(stats),
-            "library": library
-        })
+        img_b64 = base64.b64encode(buf).decode()
+        if outs:
+            upload = cloudinary.uploader.upload(buf.tobytes(), folder="frutas", resource_type="image",
+                context={"fruit": outs[0]["class"], "ripeness": outs[0]["ripeness"]})
+            detections_db.append({
+                "user_id": session.get("user","anon"),
+                "timestamp": datetime.now().isoformat(),
+                "label": outs[0]["class"],
+                "ripeness": outs[0]["ripeness"],
+                "confidence": outs[0]["confidence"],
+                "image_url": upload["secure_url"]
+            })
+        return jsonify({"detections": outs, "image": f"data:image/jpeg;base64,{img_b64}"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/stats")
-def get_stats():
-    return jsonify(dict(stats))
+@app.route("/upload", methods=["POST"])
+def upload():
+    file = request.files["file"]
+    if not file: return jsonify({"error": "No file"}), 400
+    try:
+        upload = cloudinary.uploader.upload(file, folder="frutas", resource_type="auto")
+        im = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
+        model = get_model()
+        results = model(im, verbose=False)
+        outs = []
+        for r in results:
+            for box in r.boxes:
+                cls = int(box.cls[0])
+                if cls in FRUIT_IDS:
+                    x1,y1,x2,y2 = map(int, box.xyxy[0])
+                    conf = float(box.conf[0])
+                    crop = im[y1:y2, x1:x2]
+                    ripeness = ripeness_class(crop)
+                    outs.append({
+                        "class": model.names[cls],
+                        "ripeness": ripeness,
+                        "confidence": round(conf,2)
+                    })
+        detections_db.append({
+            "user_id": session.get("user","anon"),
+            "timestamp": datetime.now().isoformat(),
+            "label": outs[0]["class"] if outs else "unknown",
+            "ripeness": outs[0]["ripeness"] if outs else "unknown",
+            "confidence": outs[0]["confidence"] if outs else 0,
+            "image_url": upload["secure_url"]
+        })
+        return jsonify({"msg": "Procesado", "detections": outs})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ADMIN
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        user = request.form["user"]
+        pwd = request.form["pass"]
+        if user == os.getenv("ADMIN_USER") and pwd == os.getenv("ADMIN_PASS"):
+            session["admin"] = True
+            return redirect(url_for("admin_panel"))
+        return "Credenciales inválidas", 403
+    return render_template("login.html")
+
+@app.route("/admin")
+def admin_panel():
+    if not session.get("admin"): return redirect(url_for("admin_login"))
+    return render_template("admin.html", detections=detections_db)
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("admin", None)
+    return redirect(url_for("index"))
+
+@app.route("/admin/export")
+def admin_export():
+    if not session.get("admin"): return redirect(url_for("admin_login"))
+    si = io.StringIO()
+    cw = csv.writer(si)
+    cw.writerow(["user_id", "timestamp", "label", "ripeness", "confidence", "image_url"])
+    for d in detections_db:
+        cw.writerow([d["user_id"], d["timestamp"], d["label"], d["ripeness"], d["confidence"], d["image_url"]])
+    output = io.BytesIO()
+    output.write(si.getvalue().encode('utf-8'))
+    output.seek(0)
+    return send_file(output, mimetype="text/csv", download_name="detecciones.csv", as_attachment=True)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
