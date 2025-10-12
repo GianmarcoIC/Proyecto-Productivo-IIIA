@@ -30,7 +30,7 @@ _model = None
 def get_model():
     global _model
     if _model is None:
-        _model = YOLO("yolov8n.pt")
+        _model = YOLO("yolov8n.pt")  # descarga automática 1ª vez
     return _model
 
 def ripeness_class(crop):
@@ -88,24 +88,25 @@ def detect():
                     "bbox": [x1,y1,x2,y2]
                 })
 
+        # Subir imagen **procesada** a Cloudinary
         _, buf = cv2.imencode(".jpg", im)
-        b64 = base64.b64encode(buf).decode()
-        if outs:
-            upload = cloudinary.uploader.upload(buf.tobytes(), folder=folder, resource_type="image",
-                context={"class": outs[0]["class"], "ripeness": outs[0]["ripeness"]})
-            detections_db.append({
-                "user_id": session.get("user","anon"),
-                "timestamp": datetime.now().isoformat(),
-                "label": outs[0]["class"],
-                "ripeness": outs[0]["ripeness"],
-                "confidence": outs[0]["confidence"],
-                "image_url": upload["secure_url"]
-            })
+        upload = cloudinary.uploader.upload(buf.tobytes(), folder=folder, resource_type="image",
+            context={"class": outs[0]["class"] if outs else "unknown", "ripeness": outs[0]["ripeness"] if outs else "unknown"})
+
+        # Guardar en biblioteca local
+        detections_db.append({
+            "user_id": session.get("user","anon"),
+            "timestamp": datetime.now().isoformat(),
+            "label": outs[0]["class"] if outs else "unknown",
+            "ripeness": outs[0]["ripeness"] if outs else "unknown",
+            "confidence": outs[0]["confidence"] if outs else 0,
+            "image_url": upload["secure_url"]
+        })
 
         return jsonify({
             "detections": outs,
-            "image": f"data:image/jpeg;base64,{b64}",
-            "library": detections_db
+            "image": f"data:image/jpeg;base64,{base64.b64encode(buf).decode()}",
+            "library": detections_db  # ← biblioteca actualizada
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -124,6 +125,7 @@ def upload():
         for r in results:
             for box in r.boxes:
                 cls = int(box.cls[0])
+                x1,y1,x2,y2 = map(int, box.xyxy[0])
                 conf = float(box.conf[0])
                 label = model.names[cls]
                 if cls in FRUIT_IDS:
