@@ -19,40 +19,33 @@
     </div>
 
     <script>
-        const video = document.getElementById('video');
+        const video  = document.getElementById('video');
         const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const resultImg = document.getElementById('result');
-        const resultsDiv = document.getElementById('results');
-        const captureBtn = document.getElementById('capture');
+        const ctx    = canvas.getContext('2d');
+        const result = document.getElementById('result');
+        const out    = document.getElementById('results');
+        const btn    = document.getElementById('capture');
 
-        // Acceder a cámara
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                video.srcObject = stream;
-            })
-            .catch(err => console.error('Error cámara:', err));
+        navigator.mediaDevices.getUserMedia({video:true})
+            .then(s => video.srcObject = s)
+            .catch(e => console.error('Error cámara:', e));
 
-        captureBtn.addEventListener('click', () => {
+        btn.addEventListener('click', () => {
             ctx.drawImage(video, 0, 0, 640, 480);
-            const dataUrl = canvas.toDataURL('image/jpeg');
-            
             fetch('/detect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: dataUrl })
+                method : 'POST',
+                headers: {'Content-Type':'application/json'},
+                body   : JSON.stringify({image: canvas.toDataURL('image/jpeg')})
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) {
-                    resultsDiv.innerHTML = `<p>Error: ${data.error}</p>`;
-                } else {
-                    resultImg.src = data.image;
-                    resultImg.style.display = 'block';
-                    resultsDiv.innerHTML = '<h3>Resultados:</h3><ul>' + 
-                        data.detections.map(d => `<li>${d.class}: ${d.ripeness} (Conf: ${Math.round(d.confidence*100)}%)</li>`).join('') + 
-                        '</ul>';
-                }
+            .then(r => r.json())
+            .then(d => {
+                if(d.error) return out.innerHTML = `<p>Error: ${d.error}</p>`;
+                result.src = d.image;
+                result.style.display = 'block';
+                out.innerHTML = '<h3>Resultados:</h3><ul>' +
+                    d.detections.map(x =>
+                        `<li>${x.class}: ${x.ripeness} (Conf: ${Math.round(x.confidence*100)}%)</li>`).join('') +
+                    '</ul>';
             });
         });
     </script>
