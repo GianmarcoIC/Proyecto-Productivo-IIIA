@@ -1,24 +1,23 @@
-import os, base64, cv2, numpy as np, json
+import os, base64, cv2, numpy as np
 from flask import Flask, render_template, request, jsonify
 from ultralytics import YOLO
-from datetime import datetime
 from collections import defaultdict
 
 app = Flask(__name__)
 
-# ---------- modelo ----------
+# descarga pesos si no existen
 if not os.path.exists("yolov8n.pt"):
     YOLO("yolov8n.pt")
 model = YOLO("yolov8n.pt")
 
-# ---------- clases COCO frutas ----------
+# IDs COCO de frutas
 FRUIT_IDS = {46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58}
 
-# ---------- estadísticas en RAM ----------
-stats = defaultdict(int)          # {"RIPEN":12, "UNRIPEN":5, "OVERRIPE":3}
+# estadísticas en RAM
+stats = defaultdict(int)   # {"RIPEN":12, "UNRIPEN":4, "OVERRIPE":2}
 
-def classify_ripeness(crop):
-    """Devuelve RIPEN / UNRIPEN / OVERRIPE"""
+def ripeness_class(crop):
+    """RIPEN / UNRIPEN / OVERRIPE solo con HSV"""
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
     s, v = hsv[:, :, 1].mean(), hsv[:, :, 2].mean()
     if s < 50 and v > 150:
@@ -47,7 +46,7 @@ def detect():
                 if cls in FRUIT_IDS:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     conf = float(box.conf[0])
-                    ripeness = classify_ripeness(im[y1:y2, x1:x2])
+                    ripeness = ripeness_class(im[y1:y2, x1:x2])
                     detections.append({
                         "class": model.names[cls],
                         "ripeness": ripeness,
