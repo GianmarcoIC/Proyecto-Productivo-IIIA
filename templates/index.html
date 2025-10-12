@@ -1,53 +1,77 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Detección Avanzada de Maduración de Frutas</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="utf-8">
+  <title>Clasificador de Maduración de Frutas</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <div class="container">
-        <h1>Clasificación de Maduración de Frutas con YOLOv8 y Cámara</h1>
-        <p>Apunta la cámara a frutas. Haz clic en "Detectar" para analizar en tiempo real.</p>
-        
-        <video id="video" width="640" height="480" autoplay></video>
-        <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
-        <img id="result" width="640" height="480" style="display:none;">
-        
-        <button id="capture">Capturar y Detectar</button>
-        <div id="results"></div>
-    </div>
+  <div class="container">
+    <h1>🍎 Clasificador de Maduración de Frutas (YOLOv8)</h1>
+    <video id="video" width="640" height="480" autoplay></video>
+    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+    <img id="result" width="640" height="480" style="display:none;">
+    <br>
+    <button id="capture">📸 Capturar y Detectar</button>
 
-    <script>
-        const video  = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const ctx    = canvas.getContext('2d');
-        const result = document.getElementById('result');
-        const out    = document.getElementById('results');
-        const btn    = document.getElementById('capture');
+    <div id="results"></div>
 
-        navigator.mediaDevices.getUserMedia({video:true})
-            .then(s => video.srcObject = s)
-            .catch(e => console.error('Error cámara:', e));
+    <h3>Estadísticas rápidas (sesión actual)</h3>
+    <canvas id="statsChart" width="300" height="300"></canvas>
+  </div>
 
-        btn.addEventListener('click', () => {
-            ctx.drawImage(video, 0, 0, 640, 480);
-            fetch('/detect', {
-                method : 'POST',
-                headers: {'Content-Type':'application/json'},
-                body   : JSON.stringify({image: canvas.toDataURL('image/jpeg')})
-            })
-            .then(r => r.json())
-            .then(d => {
-                if(d.error) return out.innerHTML = `<p>Error: ${d.error}</p>`;
-                result.src = d.image;
-                result.style.display = 'block';
-                out.innerHTML = '<h3>Resultados:</h3><ul>' +
-                    d.detections.map(x =>
-                        `<li>${x.class}: ${x.ripeness} (Conf: ${Math.round(x.confidence*100)}%)</li>`).join('') +
-                    '</ul>';
-            });
-        });
-    </script>
+  <script>
+    const video  = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+    const result = document.getElementById('result');
+    const out    = document.getElementById('results');
+    const btn    = document.getElementById('capture');
+
+    navigator.mediaDevices.getUserMedia({video:true})
+      .then(s => video.srcObject = s)
+      .catch(e => console.error(e));
+
+    let statsChart;
+
+    function drawChart(stats){
+      const labels = Object.keys(stats);
+      const data   = Object.values(stats);
+      const cfg = {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: ['#4CAF50','#FFC107','#F44336']
+          }]
+        },
+        options: { responsive: false, plugins: { legend: { position: 'bottom' } } }
+      };
+      if(statsChart) statsChart.destroy();
+      statsChart = new Chart(document.getElementById('statsChart'), cfg);
+    }
+
+    btn.addEventListener('click', () => {
+      ctx.drawImage(video, 0, 0, 640, 480);
+      fetch('/detect', {
+        method : 'POST',
+        headers: {'Content-Type':'application/json'},
+        body   : JSON.stringify({image: canvas.toDataURL('image/jpeg')})
+      })
+      .then(r => r.json())
+      .then(d => {
+        if(d.error) return out.innerHTML = `<p>Error: ${d.error}</p>`;
+        result.src = d.image;
+        result.style.display = 'block';
+        out.innerHTML = '<h3>Resultados:</h3><ul>' +
+          d.detections.map(x =>
+            `<li>${x.class} → <strong>${x.ripeness}</strong> (${(x.confidence*100).toFixed(0)}%)</li>`).join('') +
+          '</ul>';
+        drawChart(d.stats);
+      });
+    });
+  </script>
 </body>
 </html>
