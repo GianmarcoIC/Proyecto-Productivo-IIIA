@@ -7,7 +7,7 @@
   <a class="btn btn-sm btn-secondary" href="{{ url_for('admin_export') }}">📥 Descargar CSV</a>
   <a class="btn btn-sm btn-danger" href="{{ url_for('admin_logout') }}">Salir</a>
   <table class="table table-striped mt-3">
-    <thead><tr><th>Fecha</th><th>Usuario</th><th>Fruta</th><th>Estado</th><th>Confianza</th><th>Imagen</th></tr></thead>
+    <thead><tr><th>Fecha</th><th>Usuario</th><th>Objeto</th><th>Estado</th><th>Confianza</th><th>Imagen</th></tr></thead>
     <tbody>
       {% for d in detections %}
       <tr>
