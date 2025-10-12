@@ -1,23 +1,22 @@
 import os, base64, cv2, numpy as np
 from flask import Flask, render_template, request, jsonify
-from ultralytics import YOLO
 from collections import defaultdict
 
 app = Flask(__name__)
 
-# descarga pesos si no existen
-if not os.path.exists("yolov8n.pt"):
-    YOLO("yolov8n.pt")
-model = YOLO("yolov8n.pt")
-
-# IDs COCO de frutas
 FRUIT_IDS = {46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58}
+stats = defaultdict(int)          # RIPEN / UNRIPEN / OVERRIPE
 
-# estadísticas en RAM
-stats = defaultdict(int)   # {"RIPEN":12, "UNRIPEN":4, "OVERRIPE":2}
+# ---------- carga diferida del modelo ----------
+_model = None
+def get_model():
+    global _model
+    if _model is None:
+        from ultralytics import YOLO
+        _model = YOLO("yolov8n.pt")   # descarga automática si no existe
+    return _model
 
 def ripeness_class(crop):
-    """RIPEN / UNRIPEN / OVERRIPE solo con HSV"""
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
     s, v = hsv[:, :, 1].mean(), hsv[:, :, 2].mean()
     if s < 50 and v > 150:
@@ -33,11 +32,11 @@ def index():
 @app.route("/detect", methods=["POST"])
 def detect():
     try:
-        # decodificar imagen
         im_b64 = request.json["image"].split(",")[1]
         im_data = base64.b64decode(im_b64)
         im = cv2.imdecode(np.frombuffer(im_data, np.uint8), cv2.IMREAD_COLOR)
 
+        model = get_model()
         results = model(im, verbose=False)
         detections = []
         for r in results:
@@ -55,7 +54,6 @@ def detect():
                     })
                     stats[ripeness] += 1
 
-        # imagen anotada
         annotated = results[0].plot()
         _, buf = cv2.imencode(".jpg", annotated)
         b64 = base64.b64encode(buf).decode()
