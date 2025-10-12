@@ -12,7 +12,7 @@
 <nav class="navbar navbar-dark bg-institutional">
   <div class="container-fluid">
     <img src="https://icontinental.edu.pe/wp-content/uploads/2023/05/logo-instituto-continental.png" alt="Logo" class="logo">
-    <span class="navbar-text text-white ms-auto">Detector de Frutas</span>
+    <span class="navbar-text text-white ms-auto">Detector de Frutas y Objetos</span>
     <a class="btn btn-sm btn-light ms-3" href="{{ url_for('admin_login') }}">Admin</a>
   </div>
 </nav>
@@ -44,6 +44,7 @@
         <button id="capture" class="btn btn-primary" disabled>📸 Capturar</button>
         <button id="auto" class="btn btn-success" disabled>▶️ Auto</button>
         <button id="stop" class="btn btn-danger" style="display:none;">⏹️ Detener</button>
+        <button id="toggleCam" class="btn btn-warning">🔴 Apagar Cámara</button>
       </div>
       <div id="results" class="mt-4"></div>
       <canvas id="statsChart" width="300" height="300" class="mt-4"></canvas>
@@ -68,7 +69,7 @@
             <div class="card-body">
               <h6 class="card-title">{{ item.label }}</h6>
               <p class="card-text"><span class="badge bg-secondary">{{ item.ripeness }}</span></p>
-              <small class="text-muted">{{ item.timestamp[:10] }}</small>
+              <small class="text-muted">{{ item.timestamp[:16] }}</small>
             </div>
           </div>
         </div>
