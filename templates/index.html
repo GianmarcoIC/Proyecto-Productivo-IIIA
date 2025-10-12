@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Detector Continental</title>
+  <title>Detector Continental - Instituto Continental</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -13,33 +13,72 @@
   <div class="container-fluid">
     <img src="https://icontinental.edu.pe/wp-content/uploads/2023/05/logo-instituto-continental.png" alt="Logo" class="logo">
     <span class="navbar-text text-white ms-auto">Detector de Frutas</span>
+    <a class="btn btn-sm btn-light ms-3" href="{{ url_for('admin_login') }}">Admin</a>
   </div>
 </nav>
 
 <div class="container mt-4">
-  <div id="status" class="alert alert-info">Cargando modelo...</div>
+  <!-- Pestañas -->
+  <ul class="nav nav-tabs" id="mainTab" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="live-tab" data-bs-toggle="tab" data-bs-target="#live" type="button">Detección en Vivo</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button">Subir Archivo</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="library-tab" data-bs-toggle="tab" data-bs-target="#library" type="button">Biblioteca</button>
+    </li>
+  </ul>
 
-  <div class="text-center">
-    <video id="video" width="640" height="480" autoplay class="rounded border"></video>
-    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
-    <img id="result" width="640" height="480" class="rounded border mt-3" style="display:none;">
+  <div class="tab-content" id="mainTabContent">
+    <!-- DETECCIÓN EN VIVO -->
+    <div class="tab-pane fade show active" id="live" role="tabpanel">
+      <div id="status" class="alert alert-info mt-3">Verificando modelo...</div>
+      <div class="text-center mt-3">
+        <video id="video" width="640" height="480" autoplay class="rounded border"></video>
+        <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+        <img id="result" width="640" height="480" class="rounded border mt-3" style="display:none;">
+      </div>
+      <div class="text-center mt-3">
+        <button id="capture" class="btn btn-primary" disabled>📸 Capturar</button>
+        <button id="auto" class="btn btn-success" disabled>▶️ Auto</button>
+        <button id="stop" class="btn btn-danger" style="display:none;">⏹️ Detener</button>
+      </div>
+      <div id="results" class="mt-4"></div>
+      <canvas id="statsChart" width="300" height="300" class="mt-4"></canvas>
+    </div>
+
+    <!-- SUBIR ARCHIVO -->
+    <div class="tab-pane fade" id="upload" role="tabpanel">
+      <div class="mt-4">
+        <label class="form-label">Selecciona imagen o video</label>
+        <input type="file" id="fileInput" accept="image/*,video/*" class="form-control w-auto">
+        <div id="uploadResult" class="mt-3"></div>
+      </div>
+    </div>
+
+    <!-- BIBLIOTECA -->
+    <div class="tab-pane fade" id="library" role="tabpanel">
+      <div class="row mt-4" id="gallery">
+        {% for item in library %}
+        <div class="col-md-3 mb-4">
+          <div class="card h-100">
+            <img src="{{ item.image_url }}" class="card-img-top" alt="{{ item.label }}">
+            <div class="card-body">
+              <h6 class="card-title">{{ item.label }}</h6>
+              <p class="card-text"><span class="badge bg-secondary">{{ item.ripeness }}</span></p>
+              <small class="text-muted">{{ item.timestamp[:10] }}</small>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
   </div>
-
-  <div class="text-center mt-3">
-    <button id="capture" class="btn btn-primary" disabled>📸 Capturar</button>
-    <button id="auto" class="btn btn-success" disabled>▶️ Auto</button>
-    <button id="stop" class="btn btn-danger" style="display:none;">⏹️ Detener</button>
-  </div>
-
-  <div class="mt-4">
-    <h5>Subir archivo</h5>
-    <input type="file" id="fileInput" accept="image/*,video/*" class="form-control w-auto">
-  </div>
-
-  <div id="results" class="mt-4"></div>
-  <canvas id="statsChart" width="300" height="300" class="mt-4"></canvas>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
